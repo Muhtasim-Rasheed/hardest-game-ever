@@ -1,4 +1,21 @@
 use macroquad::prelude::*;
+use minreq::get;
+
+fn get_image(path: &str) -> Texture2D {
+    let response = get(format!("https://muhtasim-rasheed.github.io/hardest-game-ever/assets/{}", path))
+        .send()
+        .unwrap();
+    if response.status_code == 200 {
+        let image = Texture2D::from_file_with_format(
+            &response.as_bytes(),
+            Some(ImageFormat::Png),
+        );
+        image.set_filter(FilterMode::Nearest);
+        return image;
+    } else {
+        panic!("Failed to load image as response code was not 200 ({}).", response.status_code);
+    }
+}
 
 const WINDOW_WIDTH: f32 = 1600.0;
 const WINDOW_HEIGHT: f32 = 900.0;
@@ -250,18 +267,14 @@ impl MovingObject {
 struct SpeedPortal {
     used: bool,
     speed_change: f32,
-    texture: Texture2D,
     hitbox: Hitbox,
 }
 
 impl SpeedPortal {
-    async fn new(x: f32, y: f32, speed_change: f32) -> SpeedPortal {
-        let texture = load_texture("assets/speedportal.png").await.unwrap();
-        texture.set_filter(FilterMode::Nearest);
+    fn new(x: f32, y: f32, speed_change: f32) -> SpeedPortal {
         SpeedPortal {
             used: false,
             speed_change,
-            texture,
             hitbox: Hitbox::new(x, y, 64., 128., PURPLE),
         }
     }
@@ -276,8 +289,8 @@ impl SpeedPortal {
         }
     }
 
-    fn draw(&self) {
-        draw_texture_ex(&self.texture, self.hitbox.x, self.hitbox.y, WHITE, DrawTextureParams {
+    fn draw(&self, texture: &Texture2D) {
+        draw_texture_ex(&texture, self.hitbox.x, self.hitbox.y, WHITE, DrawTextureParams {
             dest_size: Some(vec2(self.hitbox.width, self.hitbox.height)),
             ..Default::default()
         });
@@ -322,21 +335,19 @@ struct Player {
     vy: f32,
     is_facing_up: bool,
     x_speed_mult: f32,
-    texture: Texture2D,
     hitbox: Hitbox,
 }
 
 impl Player {
-    async fn new(x: f32, y: f32) -> Player {
-        let texture = load_texture("assets/player.png").await.unwrap();
-        texture.set_filter(FilterMode::Nearest);
+    fn new(x: f32, y: f32) -> Player {
+        // let texture = load_texture("assets/player.png").await.unwrap();
+        // texture.set_filter(FilterMode::Nearest);
         Player {
             x,
             y,
             vy: 0.0,
             is_facing_up: true, // Start out flying because the click from the titlescreen persists
             x_speed_mult: 3.5,
-            texture,
             hitbox: Hitbox::new(x, y, 32.0, 24.0, RED),
         }
     }
@@ -368,8 +379,8 @@ impl Player {
         false // Player survives
     }
 
-    fn draw(&self) {
-        draw_texture_ex(&self.texture, self.x - self.hitbox.width / 1.5 + self.hitbox.width / 2., self.y - self.hitbox.height / 1.5 + self.hitbox.height / 2., WHITE, DrawTextureParams { // One line of goddamn code
+    fn draw(&self, texture: &Texture2D) {
+        draw_texture_ex(&texture, self.x - self.hitbox.width / 1.5 + self.hitbox.width / 2., self.y - self.hitbox.height / 1.5 + self.hitbox.height / 2., WHITE, DrawTextureParams { // One line of goddamn code
             dest_size: Some(vec2(self.hitbox.width * 1.5, self.hitbox.height * 1.5)),
             rotation: ((self.vy * 20.0) / (PLAYER_SPEED * self.x_speed_mult)).to_radians(),
             ..Default::default()
@@ -385,7 +396,7 @@ struct World {
 }
 
 impl World {
-    async fn new() -> World {
+    fn new() -> World {
         World {
             objects: vec![
                 Hitbox::new(0.0, 250.0, 5000.0, 50.0, GREEN),
@@ -409,7 +420,7 @@ impl World {
                 MovingObject::new(vec2(1500.0, 0.0), vec2(1600.0, 0.0), 100.0, 50.0, 3.0),
             ],
             speed_increases: vec![
-                SpeedPortal::new(1075.0, -200.0, 2.0).await,
+                SpeedPortal::new(1075.0, -200.0, 2.0),
             ],
         }
     }
@@ -448,11 +459,7 @@ impl World {
         }
     }
 
-    async fn draw(&self) {
-        let wall = load_texture("assets/wall.png").await.unwrap();
-        wall.set_filter(FilterMode::Nearest);
-        let movingplatform = load_texture("assets/movingplatform.png").await.unwrap();
-        movingplatform.set_filter(FilterMode::Nearest);
+    async fn draw(&self, wall: &Texture2D, movingplatform: &Texture2D, speedportal: &Texture2D) {
         for object in &self.objects {
             // object.draw();
             draw_texture_across_hitbox(&wall, object);
@@ -466,7 +473,7 @@ impl World {
             draw_texture_across_hitbox(&movingplatform, &object.hitbox);
         }
         for object in &self.speed_increases {
-            object.draw();
+            object.draw(&speedportal);
         }
     }
 }
@@ -591,40 +598,40 @@ struct TitleScreen {
 }
 
 impl TitleScreen {
-    async fn new() -> TitleScreen {
+    fn new(buttons_texture: &Texture2D, minibuttons_texture: &Texture2D) -> TitleScreen {
         // All buttons are stored inside assets/buttons.png. The first button is at (0, 0) and is
         // 128x32 pixels. The second button is at (0, 32) and is also 128x32 pixels. etc. etc. etc.
         let new_game_button = Button::new(100.0, 300.0, get_texture_from_spritesheet(
-            &load_texture("assets/buttons.png").await.unwrap(),
+            &buttons_texture,
             0, 0, 128, 32,
         ), get_texture_from_spritesheet(
-            &load_texture("assets/buttons.png").await.unwrap(),
+            &buttons_texture,
             0, 32, 128, 32,
         ), "new_game".to_owned());
         let statistics_button = Button::new(100.0, 370.0, get_texture_from_spritesheet(
-            &load_texture("assets/buttons.png").await.unwrap(),
+            &buttons_texture,
             0, 64, 128, 32,
         ), get_texture_from_spritesheet(
-            &load_texture("assets/buttons.png").await.unwrap(),
+            &buttons_texture,
             0, 96, 128, 32,
         ), "statistics".to_owned());
         let settings_button = Button::new(100.0, 440.0, get_texture_from_spritesheet(
-            &load_texture("assets/buttons.png").await.unwrap(),
+            &buttons_texture,
             0, 128, 128, 32,
         ), get_texture_from_spritesheet(
-            &load_texture("assets/buttons.png").await.unwrap(),
+            &buttons_texture,
             0, 160, 128, 32,
         ), "settings".to_owned());
 
         let leader_board_button = MiniButton::new(360.0, 440.0, get_texture_from_spritesheet(
-            &load_texture("assets/minibuttons.png").await.unwrap(),
+            &minibuttons_texture,
             0, 0, 32, 32,
         ), get_texture_from_spritesheet(
-            &load_texture("assets/minibuttons.png").await.unwrap(),
+            &minibuttons_texture,
             0, 32, 32, 32,
         ), "leader_board".to_owned());
         TitleScreen {
-            title: "Hardest Game Ever v1.0.0".to_owned(),
+            title: "Hardest Game Ever v1.1.0".to_owned(),
             buttons: vec![
                 new_game_button,
                 statistics_button,
@@ -650,7 +657,7 @@ impl TitleScreen {
         "continue".to_owned()
     }
 
-    async fn draw(&self) {
+    fn draw(&self, player_texture: &Texture2D) {
         draw_text(&self.title, 100.0, 200.0, 96.0, WHITE);
         for button in &self.buttons {
             button.draw();
@@ -658,9 +665,7 @@ impl TitleScreen {
         for button in &self.mini_buttons {
             button.draw();
         }
-        let player = load_texture("assets/player.png").await.unwrap();
-        player.set_filter(FilterMode::Nearest);
-        draw_texture_ex(&player, 1000.0 - (get_time().sin() * 16.0) as f32, 500.0 - (get_time().sin() * 16.0) as f32, WHITE, DrawTextureParams {
+        draw_texture_ex(&player_texture, 1000.0 - (get_time().sin() * 16.0) as f32, 500.0 - (get_time().sin() * 16.0) as f32, WHITE, DrawTextureParams {
             dest_size: Some(vec2((192.0 + get_time().sin() * 32.0) as f32, (144.0 + get_time().sin() * 32.0) as f32)),
             rotation: ((get_time() * 2.0).sin() * 0.5) as f32,
             ..Default::default()
@@ -679,17 +684,25 @@ fn window_conf() -> Conf {
 
 #[macroquad::main(window_conf)]
 async fn main() {
-    let mut title_screen = TitleScreen::new().await;
+    // ALL THE TEXTURES
+    let player_texture = get_image("player.png");
+    let wall_texture = get_image("wall.png");
+    let movingplatform_texture = get_image("movingplatform.png");
+    let speedportal_texture = get_image("speedportal.png");
+    let buttons_texture = get_image("buttons.png");
+    let minibuttons_texture = get_image("minibuttons.png");
+
+    let mut title_screen = TitleScreen::new(&buttons_texture, &minibuttons_texture);
 
     loop {
         set_default_camera();
         clear_background(BLACK);
 
         let next_screen = title_screen.update();
-        title_screen.draw().await;
+        title_screen.draw(&player_texture);
 
         if next_screen == "new_game" {
-            game().await;
+            game(player_texture.clone(), wall_texture.clone(), movingplatform_texture.clone(), speedportal_texture.clone()).await;
         } else if next_screen == "statistics" {
             // statistics().await;
         } else if next_screen == "settings" {
@@ -700,10 +713,10 @@ async fn main() {
     }
 }
 
-async fn game() {
-    let mut player = Player::new(0.0, 0.0).await;
+async fn game(player_texture: Texture2D, wall_texture: Texture2D, movingplatform_texture: Texture2D, speedportal_texture: Texture2D) {
+    let mut player = Player::new(0.0, 0.0);
 
-    let mut world = World::new().await;
+    let mut world = World::new();
 
     let mut cam = Camera2D {
         zoom: vec2(1.0 / WINDOW_WIDTH * 2.0, 1.0 / WINDOW_HEIGHT * 2.0),
@@ -738,7 +751,7 @@ async fn game() {
         let dead = player.update(&world);
 
         if dead {
-            player = Player::new(0.0, 0.0).await;
+            player = Player::new(0.0, 0.0);
             for object in &mut world.speed_increases {
                 object.used = false;
             }
@@ -758,8 +771,8 @@ async fn game() {
         draw_text("Use the mouse or space bar to change direction", -50.0, 60.0, 24.0, WHITE);
         draw_text(&format!("Attempts: {}", attempts), 0.0, 100.0, 36.0, WHITE);
 
-        player.draw();
-        world.draw().await;
+        player.draw(&player_texture);
+        world.draw(&wall_texture, &movingplatform_texture, &speedportal_texture).await;
 
         next_frame().await
     }
