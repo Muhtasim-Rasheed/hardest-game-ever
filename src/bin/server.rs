@@ -40,6 +40,7 @@ async fn submit_score(
     let mut scores = state.lock().unwrap();
     scores.push(new_score);
     scores.sort_by(|a, b| b.score.cmp(&a.score));
+    scores.dedup_by(|a, b| a.player == b.player);
     "Score submitted!1!!"
 }
 

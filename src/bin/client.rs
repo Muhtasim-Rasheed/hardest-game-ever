@@ -1,5 +1,14 @@
+use std::env;
+
 use macroquad::prelude::*;
-use minreq::get;
+use minreq::{ get, post };
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Clone)]
+struct Score {
+    player: String,
+    score: u32,
+}
 
 fn get_image(path: &str) -> Texture2D {
     let response = get(format!("https://muhtasim-rasheed.github.io/hardest-game-ever/assets/{}", path))
@@ -14,6 +23,24 @@ fn get_image(path: &str) -> Texture2D {
         return image;
     } else {
         panic!("Failed to load image as response code was not 200 ({}).", response.status_code);
+    }
+}
+
+fn submit_score(score: i32) {
+    // Get the username from the PC
+    let username = env::var("USERNAME").unwrap_or("Player".to_owned());
+
+    let request = post("https://hardest-game-ever.onrender.com/submit")
+        .with_header("Content-Type", "application/json")
+        .with_body(serde_json::to_string(&Score {
+            player: username,
+            score: score as u32,
+        }).unwrap())
+        .send()
+        .unwrap();
+
+    if request.status_code != 200 {
+        panic!("Failed to submit score as response code was not 200 ({}).", request.status_code);
     }
 }
 
@@ -631,7 +658,7 @@ impl TitleScreen {
             0, 32, 32, 32,
         ), "leader_board".to_owned());
         TitleScreen {
-            title: "Hardest Game Ever v1.1.0".to_owned(),
+            title: "Hardest Game Ever v1.2.0".to_owned(),
             buttons: vec![
                 new_game_button,
                 statistics_button,
@@ -692,7 +719,16 @@ async fn main() {
     let buttons_texture = get_image("buttons.png");
     let minibuttons_texture = get_image("minibuttons.png");
 
+    let mut leaderboard_res = get("https://hardest-game-ever.onrender.com/leaderboard")
+        .send()
+        .unwrap()
+        .as_str()
+        .unwrap()
+        .to_string();
+
     let mut title_screen = TitleScreen::new(&buttons_texture, &minibuttons_texture);
+
+    let mut best_score;
 
     loop {
         set_default_camera();
@@ -701,19 +737,66 @@ async fn main() {
         let next_screen = title_screen.update();
         title_screen.draw(&player_texture);
 
+        if is_key_pressed(KeyCode::Escape) {
+            break;
+        }
+
         if next_screen == "new_game" {
-            game(player_texture.clone(), wall_texture.clone(), movingplatform_texture.clone(), speedportal_texture.clone()).await;
+            best_score = game(player_texture.clone(), wall_texture.clone(), movingplatform_texture.clone(), speedportal_texture.clone()).await;
+            // Submit the score to the server on a separate thread
+            std::thread::spawn(move || {
+                submit_score(best_score as i32);
+            });
+            // Update leaderboard
+            leaderboard_res = get("https://hardest-game-ever.onrender.com/leaderboard")
+                .send()
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_string();
         } else if next_screen == "statistics" {
             // statistics().await;
         } else if next_screen == "settings" {
             // settings().await;
+        } else if next_screen == "leader_board" {
+            leaderboard(leaderboard_res.clone()).await;
         }
 
         next_frame().await;
     }
 }
 
-async fn game(player_texture: Texture2D, wall_texture: Texture2D, movingplatform_texture: Texture2D, speedportal_texture: Texture2D) {
+async fn leaderboard(response: String) {
+    let scores: Vec<Score>;
+
+    scores = serde_json::from_str(&response.as_str()).unwrap();
+
+    loop {
+        set_default_camera();
+        clear_background(BLACK);
+
+        if is_key_pressed(KeyCode::Escape) {
+            break;
+        }
+
+        for i in 0..scores.len() {
+            let color = if i == 0 {
+                GOLD
+            } else if i == 1 {
+                GRAY
+            } else if i == 2 {
+                BROWN
+            } else {
+                WHITE
+            };
+            draw_text(&format!("{}: {} - {}", i + 1, scores[i].player, scores[i].score), 100.0, 100.0 + i as f32 * 50.0, 36.0 + (10.0 - i as f32) * 4.0, color);
+        }
+
+        next_frame().await;
+    }
+}
+
+async fn game(player_texture: Texture2D, wall_texture: Texture2D, movingplatform_texture: Texture2D, speedportal_texture: Texture2D) -> u32 {
     let mut player = Player::new(0.0, 0.0);
 
     let mut world = World::new();
@@ -724,6 +807,8 @@ async fn game(player_texture: Texture2D, wall_texture: Texture2D, movingplatform
     };
 
     let mut attempts = 0;
+    let mut score = 0;
+    let mut best_score = 0;
 
     let mut bg_color = BLACK;
     
@@ -756,6 +841,7 @@ async fn game(player_texture: Texture2D, wall_texture: Texture2D, movingplatform
                 object.used = false;
             }
             attempts += 1;
+            score = 0;
             next_frame().await;
         }
         
@@ -774,6 +860,19 @@ async fn game(player_texture: Texture2D, wall_texture: Texture2D, movingplatform
         player.draw(&player_texture);
         world.draw(&wall_texture, &movingplatform_texture, &speedportal_texture).await;
 
+        set_default_camera();
+
+        draw_text(&format!("Score: {}", score), 10.0, 50.0, 30.0, WHITE);
+        draw_text(&format!("Best Score: {}", best_score), 10.0, 100.0, 30.0, WHITE);
+
+        score += 1;
+
+        if score > best_score {
+            best_score = score;
+        }
+
         next_frame().await
     }
+
+    best_score
 }

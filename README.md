@@ -2,9 +2,10 @@
 
 ## Description
 
-This is a game where you are a wave and there are obstacles in your way.
-They can be both moving and static. You have to avoid them and reach the end of the level.
-(Spoiler: there isn't an end yet)
+This is a game where you are a wave and there are obstacles in your way.  
+They can be both moving and static. You have to avoid them and reach the end of the level.  
+(Spoiler: there isn't an end yet)  
+There is a leaderboard!
 
 ## Wait! Check if you have these:
 
