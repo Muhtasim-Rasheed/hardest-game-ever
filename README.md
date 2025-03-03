@@ -15,6 +15,22 @@ There is a leaderboard!
 4. A screen
 6. [[HARDEST REQUIREMENT]] Internet connection
 
+## How to run
+
+### Client
+
+1. Get it from here: `git clone https://github.com/Muhtasim-Rasheed/hardest-game-ever.git`
+2. Go to the directory: `cd hardest-game-ever`
+3. `cargo run --bin client`
+
+### Server
+You may only want to run the server if you want to host your own leaderboard, if so,
+you need to change the code where the client gets the leaderboard from and submits to.
+
+1. Get it from here: `git clone https://github.com/Muhtasim-Rasheed/hardest-game-ever.git`
+2. Go to the directory: `cd hardest-game-ever`
+3. `cargo run --bin server`
+
 ## How to play
 
 - space or click: jump
