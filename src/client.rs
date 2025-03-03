@@ -2,13 +2,8 @@ use std::env;
 
 use macroquad::prelude::*;
 use minreq::{ get, post };
-use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone)]
-struct Score {
-    player: String,
-    score: u32,
-}
+mod router;
 
 fn get_image(path: &str) -> Texture2D {
     let response = get(format!("https://muhtasim-rasheed.github.io/hardest-game-ever/assets/{}", path))
@@ -30,9 +25,9 @@ fn submit_score(score: i32) {
     // Get the username from the PC
     let username = env::var("USERNAME").unwrap_or("Player".to_owned());
 
-    let request = post("https://hardest-game-ever.onrender.com/submit")
+    let request = post("https://hardest-game-ever-d2ht.shuttle.app/submit")
         .with_header("Content-Type", "application/json")
-        .with_body(serde_json::to_string(&Score {
+        .with_body(serde_json::to_string(&router::Score {
             player: username,
             score: score as u32,
         }).unwrap())
@@ -204,9 +199,9 @@ impl Hitbox {
         vec2(self.x, self.y)
     }
 
-    fn draw(&self) {
-        draw_rectangle_lines(self.x, self.y, self.width, self.height, 5.0, self.color);
-    }
+    // fn draw(&self) {
+    //     draw_rectangle_lines(self.x, self.y, self.width, self.height, 5.0, self.color);
+    // }
 }
 
 struct PolygonHitbox {
@@ -236,13 +231,13 @@ impl PolygonHitbox {
         false
     }
 
-    fn draw(&self) {
-        for i in 0..self.points.len() {
-            let p1 = self.points[i];
-            let p2 = self.points[(i + 1) % self.points.len()];
-            draw_line(p1.x, p1.y, p2.x, p2.y, 3.0, self.color);
-        }
-    }
+    // fn draw(&self) {
+    //     for i in 0..self.points.len() {
+    //         let p1 = self.points[i];
+    //         let p2 = self.points[(i + 1) % self.points.len()];
+    //         draw_line(p1.x, p1.y, p2.x, p2.y, 3.0, self.color);
+    //     }
+    // }
 }
 
 struct MovingObject {
@@ -286,9 +281,9 @@ impl MovingObject {
         }
     }
 
-    fn draw(&self) {
-        self.hitbox.draw();
-    }
+    // fn draw(&self) {
+    //     self.hitbox.draw();
+    // }
 }
 
 struct SpeedPortal {
@@ -658,7 +653,7 @@ impl TitleScreen {
             0, 32, 32, 32,
         ), "leader_board".to_owned());
         TitleScreen {
-            title: "Hardest Game Ever v1.2.0".to_owned(),
+            title: "Hardest Game Ever v1.3.0".to_owned(),
             buttons: vec![
                 new_game_button,
                 statistics_button,
@@ -719,7 +714,7 @@ async fn main() {
     let buttons_texture = get_image("buttons.png");
     let minibuttons_texture = get_image("minibuttons.png");
 
-    let mut leaderboard_res = get("https://hardest-game-ever.onrender.com/leaderboard")
+    let mut leaderboard_res = get("https://hardest-game-ever-d2ht.shuttle.app/leaderboard")
         .send()
         .unwrap()
         .as_str()
@@ -747,13 +742,6 @@ async fn main() {
             std::thread::spawn(move || {
                 submit_score(best_score as i32);
             });
-            // Update leaderboard
-            leaderboard_res = get("https://hardest-game-ever.onrender.com/leaderboard")
-                .send()
-                .unwrap()
-                .as_str()
-                .unwrap()
-                .to_string();
         } else if next_screen == "statistics" {
             // statistics().await;
         } else if next_screen == "settings" {
@@ -767,7 +755,7 @@ async fn main() {
 }
 
 async fn leaderboard(response: String) {
-    let scores: Vec<Score>;
+    let scores: Vec<router::Score>;
 
     scores = serde_json::from_str(&response.as_str()).unwrap();
 
@@ -789,8 +777,11 @@ async fn leaderboard(response: String) {
             } else {
                 WHITE
             };
+            draw_rectangle_lines(100.0, i as f32 * 50.0, 500.0, 100.0, 5.0, color);
             draw_text(&format!("{}: {} - {}", i + 1, scores[i].player, scores[i].score), 100.0, 100.0 + i as f32 * 50.0, 36.0 + (10.0 - i as f32) * 4.0, color);
         }
+
+        draw_text("Leaderboard may not be up to date, restart the game to refresh", 100.0, 800.0, 24.0, GRAY);
 
         next_frame().await;
     }
