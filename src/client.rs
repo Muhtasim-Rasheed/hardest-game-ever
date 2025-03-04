@@ -637,15 +637,15 @@ impl TitleScreen {
             &buttons_texture,
             0, 96, 128, 32,
         ), "statistics".to_owned());
-        let settings_button = Button::new(100.0, 440.0, get_texture_from_spritesheet(
-            &buttons_texture,
-            0, 128, 128, 32,
-        ), get_texture_from_spritesheet(
-            &buttons_texture,
-            0, 160, 128, 32,
-        ), "settings".to_owned());
+        // let settings_button = Button::new(100.0, 440.0, get_texture_from_spritesheet(
+        //     &buttons_texture,
+        //     0, 128, 128, 32,
+        // ), get_texture_from_spritesheet(
+        //     &buttons_texture,
+        //     0, 160, 128, 32,
+        // ), "settings".to_owned());
 
-        let leader_board_button = MiniButton::new(360.0, 440.0, get_texture_from_spritesheet(
+        let leader_board_button = MiniButton::new(360.0, 300.0, get_texture_from_spritesheet(
             &minibuttons_texture,
             0, 0, 32, 32,
         ), get_texture_from_spritesheet(
@@ -653,11 +653,11 @@ impl TitleScreen {
             0, 32, 32, 32,
         ), "leader_board".to_owned());
         TitleScreen {
-            title: "Hardest Game Ever v1.3.0".to_owned(),
+            title: "Hardest Game Ever v1.4.0".to_owned(),
             buttons: vec![
                 new_game_button,
                 statistics_button,
-                settings_button,
+                // settings_button,
             ],
             mini_buttons: vec![
                 leader_board_button,
@@ -714,7 +714,7 @@ async fn main() {
     let buttons_texture = get_image("buttons.png");
     let minibuttons_texture = get_image("minibuttons.png");
 
-    let mut leaderboard_res = get("https://hardest-game-ever-d2ht.shuttle.app/leaderboard")
+    let leaderboard_res = get("https://hardest-game-ever-d2ht.shuttle.app/leaderboard")
         .send()
         .unwrap()
         .as_str()
@@ -723,7 +723,7 @@ async fn main() {
 
     let mut title_screen = TitleScreen::new(&buttons_texture, &minibuttons_texture);
 
-    let mut best_score;
+    let mut best_score = 0;
 
     loop {
         set_default_camera();
@@ -744,11 +744,40 @@ async fn main() {
             });
         } else if next_screen == "statistics" {
             // statistics().await;
-        } else if next_screen == "settings" {
-            // settings().await;
+            // Show best score if its higher than leaderboard score
+            let mut leaderboard_selfbest = 0;
+            let selfname = env::var("USERNAME").unwrap_or("Player".to_owned());
+            for score in serde_json::from_str::<Vec<router::Score>>(&leaderboard_res.as_str()).unwrap() {
+                if score.player == selfname {
+                    leaderboard_selfbest = score.score;
+                    break;
+                }
+            }
+            let score = if best_score > leaderboard_selfbest {
+                best_score
+            } else {
+                leaderboard_selfbest
+            };
+            statistics(score).await;
         } else if next_screen == "leader_board" {
             leaderboard(leaderboard_res.clone()).await;
         }
+
+        next_frame().await;
+    }
+}
+
+async fn statistics(leaderboard_selfbest: u32) {
+    loop {
+        set_default_camera();
+        clear_background(BLACK);
+
+        if is_key_pressed(KeyCode::Escape) {
+            break;
+        }
+
+        draw_text("Statistics", 100.0, 100.0, 48.0, WHITE);
+        draw_text(&format!("Your best score: {}s", round(leaderboard_selfbest as f32 / 60.0, 2)), 100.0, 200.0, 36.0, GOLD);
 
         next_frame().await;
     }
@@ -777,8 +806,7 @@ async fn leaderboard(response: String) {
             } else {
                 WHITE
             };
-            draw_rectangle_lines(100.0, i as f32 * 50.0, 500.0, 100.0, 5.0, color);
-            draw_text(&format!("{}: {} - {}", i + 1, scores[i].player, scores[i].score), 100.0, 100.0 + i as f32 * 50.0, 36.0 + (10.0 - i as f32) * 4.0, color);
+            draw_text(&format!("{}: {} - {}s", i + 1, scores[i].player, round(scores[i].score as f32 / 60.0, 2)), 100.0, 100.0 + i as f32 * 50.0, 36.0 + (10.0 - i as f32) * 4.0, color);
         }
 
         draw_text("Leaderboard may not be up to date, restart the game to refresh", 100.0, 800.0, 24.0, GRAY);
@@ -853,8 +881,8 @@ async fn game(player_texture: Texture2D, wall_texture: Texture2D, movingplatform
 
         set_default_camera();
 
-        draw_text(&format!("Score: {}", score), 10.0, 50.0, 30.0, WHITE);
-        draw_text(&format!("Best Score: {}", best_score), 10.0, 100.0, 30.0, WHITE);
+        draw_text(&format!("Score: {}", round(score as f32 / 60.0, 2)), 10.0, 50.0, 30.0, WHITE);
+        draw_text(&format!("Best Score: {}", round(best_score as f32 / 60.0, 2)), 10.0, 100.0, 30.0, WHITE);
 
         score += 1;
 
