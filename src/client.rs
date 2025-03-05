@@ -1,4 +1,5 @@
 use std::env;
+use serde_json::json;
 
 use macroquad::prelude::*;
 use minreq::{ get, post };
@@ -199,9 +200,9 @@ impl Hitbox {
         vec2(self.x, self.y)
     }
 
-    // fn draw(&self) {
-    //     draw_rectangle_lines(self.x, self.y, self.width, self.height, 5.0, self.color);
-    // }
+    fn draw(&self) {
+        draw_rectangle_lines(self.x, self.y, self.width, self.height, 5.0, self.color);
+    }
 }
 
 struct PolygonHitbox {
@@ -231,13 +232,13 @@ impl PolygonHitbox {
         false
     }
 
-    // fn draw(&self) {
-    //     for i in 0..self.points.len() {
-    //         let p1 = self.points[i];
-    //         let p2 = self.points[(i + 1) % self.points.len()];
-    //         draw_line(p1.x, p1.y, p2.x, p2.y, 3.0, self.color);
-    //     }
-    // }
+    fn draw(&self) {
+        for i in 0..self.points.len() {
+            let p1 = self.points[i];
+            let p2 = self.points[(i + 1) % self.points.len()];
+            draw_line(p1.x, p1.y, p2.x, p2.y, 3.0, self.color);
+        }
+    }
 }
 
 struct MovingObject {
@@ -281,9 +282,9 @@ impl MovingObject {
         }
     }
 
-    // fn draw(&self) {
-    //     self.hitbox.draw();
-    // }
+    fn draw(&self) {
+        self.hitbox.draw();
+    }
 }
 
 struct SpeedPortal {
@@ -351,6 +352,14 @@ impl Clone for MovingObject {
         }
     }
 }
+
+enum Objects {
+    Hitbox(Hitbox),
+    PolygonHitbox(PolygonHitbox),
+    MovingObject(MovingObject),
+    SpeedPortal(SpeedPortal),
+}
+
 struct Player {
     x: f32,
     y: f32,
@@ -445,6 +454,116 @@ impl World {
                 SpeedPortal::new(1075.0, -200.0, 2.0),
             ],
         }
+    }
+
+    fn from_json(data: &str) -> World {
+        let world: serde_json::Value = serde_json::from_str(data).unwrap();
+        let mut objects = Vec::new();
+        let mut poly_objects = Vec::new();
+        let mut moving_objects = Vec::new();
+        let mut speed_increases = Vec::new();
+        for object in world["objects"].as_array().unwrap() {
+            objects.push(Hitbox::new(
+                object["x"].as_f64().unwrap() as f32,
+                object["y"].as_f64().unwrap() as f32,
+                object["width"].as_f64().unwrap() as f32,
+                object["height"].as_f64().unwrap() as f32,
+                GREEN,
+            ));
+        }
+        for object in world["poly_objects"].as_array().unwrap() {
+            let mut points = Vec::new();
+            for point in object["points"].as_array().unwrap() {
+                points.push(vec2(
+                    point["x"].as_f64().unwrap() as f32,
+                    point["y"].as_f64().unwrap() as f32,
+                ));
+            }
+            poly_objects.push(PolygonHitbox::new(points, GREEN));
+        }
+        for object in world["moving_objects"].as_array().unwrap() {
+            moving_objects.push(MovingObject::new(
+                vec2(
+                    object["from"]["x"].as_f64().unwrap() as f32,
+                    object["from"]["y"].as_f64().unwrap() as f32,
+                ),
+                vec2(
+                    object["to"]["x"].as_f64().unwrap() as f32,
+                    object["to"]["y"].as_f64().unwrap() as f32,
+                ),
+                object["width"].as_f64().unwrap() as f32,
+                object["height"].as_f64().unwrap() as f32,
+                object["speed"].as_f64().unwrap() as f32,
+            ));
+        }
+        for object in world["speed_increases"].as_array().unwrap() {
+            speed_increases.push(SpeedPortal::new(
+                object["x"].as_f64().unwrap() as f32,
+                object["y"].as_f64().unwrap() as f32,
+                object["speed_change"].as_f64().unwrap() as f32,
+            ));
+        }
+        World {
+            objects,
+            poly_objects,
+            moving_objects,
+            speed_increases,
+        }
+    }
+
+    fn as_json(&self) -> String {
+        let mut objects = Vec::new();
+        let mut poly_objects = Vec::new();
+        let mut moving_objects = Vec::new();
+        let mut speed_increases = Vec::new();
+        for object in &self.objects {
+            objects.push(json!({
+                "x": object.x,
+                "y": object.y,
+                "width": object.width,
+                "height": object.height,
+            }));
+        }
+        for object in &self.poly_objects {
+            let mut points = Vec::new();
+            for point in &object.points {
+                points.push(json!({
+                    "x": point.x,
+                    "y": point.y,
+                }));
+            }
+            poly_objects.push(json!({
+                "points": points,
+            }));
+        }
+        for object in &self.moving_objects {
+            moving_objects.push(json!({
+                "from": {
+                    "x": object.from.x,
+                    "y": object.from.y,
+                },
+                "to": {
+                    "x": object.to.x,
+                    "y": object.to.y,
+                },
+                "width": object.hitbox.width,
+                "height": object.hitbox.height,
+                "speed": object.speed,
+            }));
+        }
+        for object in &self.speed_increases {
+            speed_increases.push(json!({
+                "x": object.hitbox.x,
+                "y": object.hitbox.y,
+                "speed_change": object.speed_change,
+            }));
+        }
+        json!({
+            "objects": objects,
+            "poly_objects": poly_objects,
+            "moving_objects": moving_objects,
+            "speed_increases": speed_increases,
+        }).to_string()
     }
 
     fn player_hit_check(&self, player: &Player) -> bool {
@@ -653,7 +772,7 @@ impl TitleScreen {
             0, 32, 32, 32,
         ), "leader_board".to_owned());
         TitleScreen {
-            title: "Hardest Game Ever v1.4.0".to_owned(),
+            title: "Hardest Game Ever v1.5.0".to_owned(),
             buttons: vec![
                 new_game_button,
                 statistics_button,
@@ -721,6 +840,13 @@ async fn main() {
         .unwrap()
         .to_string();
 
+    let world_res = get("https://hardest-game-ever-d2ht.shuttle.app/world")
+        .send()
+        .unwrap()
+        .as_str()
+        .unwrap()
+        .to_string();
+
     let mut title_screen = TitleScreen::new(&buttons_texture, &minibuttons_texture);
 
     let mut best_score = 0;
@@ -737,7 +863,7 @@ async fn main() {
         }
 
         if next_screen == "new_game" {
-            best_score = game(player_texture.clone(), wall_texture.clone(), movingplatform_texture.clone(), speedportal_texture.clone()).await;
+            best_score = game(world_res.clone(), player_texture.clone(), wall_texture.clone(), movingplatform_texture.clone(), speedportal_texture.clone()).await;
             // Submit the score to the server on a separate thread
             std::thread::spawn(move || {
                 submit_score(best_score as i32);
@@ -815,10 +941,12 @@ async fn leaderboard(response: String) {
     }
 }
 
-async fn game(player_texture: Texture2D, wall_texture: Texture2D, movingplatform_texture: Texture2D, speedportal_texture: Texture2D) -> u32 {
+async fn game(world_res: String, player_texture: Texture2D, wall_texture: Texture2D, movingplatform_texture: Texture2D, speedportal_texture: Texture2D) -> u32 {
     let mut player = Player::new(0.0, 0.0);
 
-    let mut world = World::new();
+    let mut world = World::from_json(&world_res);
+
+    println!("{}", world.as_json());
 
     let mut cam = Camera2D {
         zoom: vec2(1.0 / WINDOW_WIDTH * 2.0, 1.0 / WINDOW_HEIGHT * 2.0),
