@@ -772,7 +772,7 @@ impl TitleScreen {
             0, 32, 32, 32,
         ), "leader_board".to_owned());
         TitleScreen {
-            title: "Hardest Game Ever v1.5.0".to_owned(),
+            title: "Hardest Game Ever v1.5.1".to_owned(),
             buttons: vec![
                 new_game_button,
                 statistics_button,
@@ -944,7 +944,7 @@ async fn leaderboard(response: String) {
 async fn game(world_res: String, player_texture: Texture2D, wall_texture: Texture2D, movingplatform_texture: Texture2D, speedportal_texture: Texture2D) -> u32 {
     let mut player = Player::new(0.0, 0.0);
 
-    let mut world = World::from_json(&world_res);
+    let mut world = World::from_json(&world_res.as_str());
 
     println!("{}", world.as_json());
 
