@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::sync::{Arc, Mutex};
+use std::{collections::HashSet, sync::{Arc, Mutex}};
 
 // use tokio::net::TcpListener;
 
@@ -42,7 +42,10 @@ async fn submit_score(
     let mut scores = state.scores.lock().unwrap();
     scores.push(new_score);
     scores.sort_by(|a, b| b.score.cmp(&a.score));
-    scores.dedup_by(|a, b| a.player == b.player);
+    // scores.dedup_by(|a, b| a.player == b.player); // dedup_by only removes consecutive
+    // duplicates, so we need to do it manually
+    let mut seen = HashSet::new();
+    scores.retain(|e| seen.insert(e.player.clone()));
     "Score submitted!1!!"
 }
 
@@ -75,8 +78,6 @@ impl ToString for World {
 }
 
 async fn world() -> Json<String> {
-    // "{\"moving_objects\":[{\"from\":{\"x\":1100.0,\"y\":-225.0},\"height\":100.0,\"speed\":3.0,\"to\":{\"x\":1200.0,\"y\":150.0},\"width\":50.0},{\"from\":{\"x\":1300.0,\"y\":150.0},\"height\":100.0,\"speed\":3.0,\"to\":{\"x\":1400.0,\"y\":-225.0},\"width\":50.0},{\"from\":{\"x\":1500.0,\"y\":0.0},\"height\":50.0,\"speed\":3.0,\"to\":{\"x\":1600.0,\"y\":0.0},\"width\":100.0}],\"objects\":[{\"height\":50.0,\"width\":5000.0,\"x\":0.0,\"y\":250.0},{\"height\":50.0,\"width\":5000.0,\"x\":0.0,\"y\":-300.0},{\"height\":235.0,\"width\":50.0,\"x\":500.0,\"y\":15.0},{\"height\":235.0,\"width\":50.0,\"x\":625.0,\"y\":-250.0}],\"poly_objects\":[{\"points\":[{\"x\":775.0,\"y\":-80.0},{\"x\":775.0,\"y\":250.0},{\"x\":1075.0,\"y\":250.0},{\"x\":1075.0,\"y\":0.0},{\"x\":975.0,\"y\":-80.0}]}],\"speed_increases\":[{\"speed_change\":2.0,\"x\":1075.0,\"y\":-200.0}]}"
-    
     let world = World {
         objects: vec![
             json!({
