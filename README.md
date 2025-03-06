@@ -25,7 +25,8 @@ There is a leaderboard!
 
 ### Server
 You may only want to run the server if you want to host your own leaderboard, if so,
-you need to change the code where the client gets the leaderboard from and submits to.
+you need to change the code where the client gets the leaderboard from and submits to.  
+[[UPDATE]] Now you can run the program in debug mode to connect to http://127.0.0.1:3000.
 
 1. Get it from here: `git clone https://github.com/Muhtasim-Rasheed/hardest-game-ever.git`
 2. Go to the directory: `cd hardest-game-ever`

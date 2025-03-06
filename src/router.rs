@@ -4,7 +4,9 @@ use axum::{
     Router,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::sync::{Arc, Mutex};
+
 // use tokio::net::TcpListener;
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -52,6 +54,94 @@ async fn get_leaderboard(
     Json(scores.clone())
 }
 
-async fn world() -> &'static str {
-    "{\"moving_objects\":[{\"from\":{\"x\":1100.0,\"y\":-225.0},\"height\":100.0,\"speed\":3.0,\"to\":{\"x\":1200.0,\"y\":150.0},\"width\":50.0},{\"from\":{\"x\":1300.0,\"y\":150.0},\"height\":100.0,\"speed\":3.0,\"to\":{\"x\":1400.0,\"y\":-225.0},\"width\":50.0},{\"from\":{\"x\":1500.0,\"y\":0.0},\"height\":50.0,\"speed\":3.0,\"to\":{\"x\":1600.0,\"y\":0.0},\"width\":100.0}],\"objects\":[{\"height\":50.0,\"width\":5000.0,\"x\":0.0,\"y\":250.0},{\"height\":50.0,\"width\":5000.0,\"x\":0.0,\"y\":-300.0},{\"height\":235.0,\"width\":50.0,\"x\":500.0,\"y\":15.0},{\"height\":235.0,\"width\":50.0,\"x\":625.0,\"y\":-250.0}],\"poly_objects\":[{\"points\":[{\"x\":775.0,\"y\":-80.0},{\"x\":775.0,\"y\":250.0},{\"x\":1075.0,\"y\":250.0},{\"x\":1075.0,\"y\":0.0},{\"x\":975.0,\"y\":-80.0}]}],\"speed_increases\":[{\"speed_change\":2.0,\"x\":1075.0,\"y\":-200.0}]}"
+#[derive(Serialize, Deserialize)]
+struct World {
+    objects: Vec<serde_json::Value>,
+    poly_objects: Vec<serde_json::Value>,
+    moving_objects: Vec<serde_json::Value>,
+    speed_increases: Vec<serde_json::Value>,
+}
+
+impl ToString for World {
+    fn to_string(&self) -> String {
+        json!({
+            "objects": self.objects,
+            "poly_objects": self.poly_objects,
+            "moving_objects": self.moving_objects,
+            "speed_increases": self.speed_increases,
+        })
+        .to_string()
+    }
+}
+
+async fn world() -> Json<String> {
+    // "{\"moving_objects\":[{\"from\":{\"x\":1100.0,\"y\":-225.0},\"height\":100.0,\"speed\":3.0,\"to\":{\"x\":1200.0,\"y\":150.0},\"width\":50.0},{\"from\":{\"x\":1300.0,\"y\":150.0},\"height\":100.0,\"speed\":3.0,\"to\":{\"x\":1400.0,\"y\":-225.0},\"width\":50.0},{\"from\":{\"x\":1500.0,\"y\":0.0},\"height\":50.0,\"speed\":3.0,\"to\":{\"x\":1600.0,\"y\":0.0},\"width\":100.0}],\"objects\":[{\"height\":50.0,\"width\":5000.0,\"x\":0.0,\"y\":250.0},{\"height\":50.0,\"width\":5000.0,\"x\":0.0,\"y\":-300.0},{\"height\":235.0,\"width\":50.0,\"x\":500.0,\"y\":15.0},{\"height\":235.0,\"width\":50.0,\"x\":625.0,\"y\":-250.0}],\"poly_objects\":[{\"points\":[{\"x\":775.0,\"y\":-80.0},{\"x\":775.0,\"y\":250.0},{\"x\":1075.0,\"y\":250.0},{\"x\":1075.0,\"y\":0.0},{\"x\":975.0,\"y\":-80.0}]}],\"speed_increases\":[{\"speed_change\":2.0,\"x\":1075.0,\"y\":-200.0}]}"
+    
+    let world = World {
+        objects: vec![
+            json!({
+                "x": 0.0,
+                "y": 250.0,
+                "width": 5000.0,
+                "height": 50.0,
+            }),
+            json!({
+                "x": 0.0,
+                "y": -300.0,
+                "width": 5000.0,
+                "height": 50.0,
+            }),
+            json!({
+                "x": 500.0,
+                "y": 15.0,
+                "width": 50.0,
+                "height": 235.0,
+            }),
+            json!({
+                "x": 625.0,
+                "y": -250.0,
+                "width": 50.0,
+                "height": 235.0,
+            }),
+        ],
+        poly_objects: vec![json!({
+            "points": [
+                {"x": 775.0, "y": -80.0},
+                {"x": 775.0, "y": 250.0},
+                {"x": 1075.0, "y": 250.0},
+                {"x": 1075.0, "y": 0.0},
+                {"x": 975.0, "y": -80.0},
+            ],
+        })],
+        moving_objects: vec![
+            json!({
+                "from": {"x": 1100.0, "y": -225.0},
+                "to": {"x": 1200.0, "y": 150.0},
+                "width": 50.0,
+                "height": 100.0,
+                "speed": 3.0,
+            }),
+            json!({
+                "from": {"x": 1300.0, "y": 150.0},
+                "to": {"x": 1400.0, "y": -225.0},
+                "width": 50.0,
+                "height": 100.0,
+                "speed": 3.0,
+            }),
+            json!({
+                "from": {"x": 1500.0, "y": 0.0},
+                "to": {"x": 1600.0, "y": 0.0},
+                "width": 100.0,
+                "height":
+                50.0,
+                "speed": 3.0,
+            }),
+        ],
+        speed_increases: vec![json!({
+            "x": 1075.0,
+            "y": -200.0,
+            "speed_change": 2.0,
+        })],
+    };
+    Json(world.to_string())
 }

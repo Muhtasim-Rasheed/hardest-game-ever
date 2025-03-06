@@ -6,6 +6,12 @@ use minreq::{ get, post };
 
 mod router;
 
+#[cfg(not(debug_assertions))]
+const SERVER_URL: &str = "https://hardest-game-ever-d2ht.shuttle.app";
+
+#[cfg(debug_assertions)]
+const SERVER_URL: &str = "http://127.0.0.1:3000";
+
 fn get_image(path: &str) -> Texture2D {
     let response = get(format!("https://muhtasim-rasheed.github.io/hardest-game-ever/assets/{}", path))
         .send()
@@ -26,7 +32,8 @@ fn submit_score(score: i32) {
     // Get the username from the PC
     let username = env::var("USERNAME").unwrap_or("Player".to_owned());
 
-    let request = post("https://hardest-game-ever-d2ht.shuttle.app/submit")
+    // let request = post("https://hardest-game-ever-d2ht.shuttle.app/submit")
+    let request = post(format!("{}/submit", SERVER_URL))
         .with_header("Content-Type", "application/json")
         .with_body(serde_json::to_string(&router::Score {
             player: username,
@@ -456,8 +463,10 @@ impl World {
         }
     }
 
-    fn from_json(data: &str) -> World {
-        let world: serde_json::Value = serde_json::from_str(data).unwrap();
+    fn from_json(data_unprocessed: &str) -> World {
+        // Make sure there is no " before and after the root object and replace all the "\" with ""
+        let data = data_unprocessed.trim_matches('"').replace("\\", "");
+        let world: serde_json::Value = serde_json::from_str(data.as_str()).unwrap();
         let mut objects = Vec::new();
         let mut poly_objects = Vec::new();
         let mut moving_objects = Vec::new();
@@ -772,7 +781,7 @@ impl TitleScreen {
             0, 32, 32, 32,
         ), "leader_board".to_owned());
         TitleScreen {
-            title: "Hardest Game Ever v1.5.1".to_owned(),
+            title: "Hardest Game Ever v1.5.2".to_owned(),
             buttons: vec![
                 new_game_button,
                 statistics_button,
@@ -825,6 +834,15 @@ fn window_conf() -> Conf {
 
 #[macroquad::main(window_conf)]
 async fn main() {
+    // Check if 127.0.0.1:3000 is reachable, if not, panic
+    if cfg!(debug_assertions) {
+        let response = get("http://127.0.0.1:3000/leaderboard").send().expect("Failed to connect to the server.\nPlease make sure the server is running on http://127.0.0.1:3000 for development.");
+        if response.status_code != 200 {
+            panic!("Failed to connect to the server.\nPlease make sure the server is running on http://127.0.0.1:3000 for development.");
+        }
+        drop(response);
+    }
+
     // ALL THE TEXTURES
     let player_texture = get_image("player.png");
     let wall_texture = get_image("wall.png");
@@ -833,14 +851,16 @@ async fn main() {
     let buttons_texture = get_image("buttons.png");
     let minibuttons_texture = get_image("minibuttons.png");
 
-    let leaderboard_res = get("https://hardest-game-ever-d2ht.shuttle.app/leaderboard")
+    // let leaderboard_res = get("https://hardest-game-ever-d2ht.shuttle.app/leaderboard")
+    let leaderboard_res = get(format!("{}/leaderboard", SERVER_URL))
         .send()
         .unwrap()
         .as_str()
         .unwrap()
         .to_string();
 
-    let world_res = get("https://hardest-game-ever-d2ht.shuttle.app/world")
+    // let world_res = get("https://hardest-game-ever-d2ht.shuttle.app/world")
+    let world_res = get(format!("{}/world", SERVER_URL))
         .send()
         .unwrap()
         .as_str()
@@ -944,9 +964,7 @@ async fn leaderboard(response: String) {
 async fn game(world_res: String, player_texture: Texture2D, wall_texture: Texture2D, movingplatform_texture: Texture2D, speedportal_texture: Texture2D) -> u32 {
     let mut player = Player::new(0.0, 0.0);
 
-    let mut world = World::from_json(&world_res.as_str());
-
-    println!("{}", world.as_json());
+    let mut world = World::from_json(world_res.as_str());
 
     let mut cam = Camera2D {
         zoom: vec2(1.0 / WINDOW_WIDTH * 2.0, 1.0 / WINDOW_HEIGHT * 2.0),

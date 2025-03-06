@@ -1,6 +1,6 @@
 [package]
 name = "hardest-game-ever"
-version = "1.5.1"
+version = "1.5.2"
 edition = "2021"
 
 [[bin]]
@@ -10,10 +10,6 @@ path = "src/server.rs"
 [[bin]]
 name = "client"
 path = "src/client.rs"
-
-[[bin]]
-name = "level-editor"
-path = "src/level_editor.rs"
 
 [dependencies]
 axum = "0.8.1"
