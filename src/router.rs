@@ -9,7 +9,7 @@ use std::{collections::HashSet, sync::{Arc, Mutex}};
 
 // use tokio::net::TcpListener;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Score {
     pub player: String,
     pub score: u32,
@@ -46,6 +46,7 @@ async fn submit_score(
     // duplicates, so we need to do it manually
     let mut seen = HashSet::new();
     scores.retain(|e| seen.insert(e.player.clone()));
+    println!("{:?} {:?}", scores, seen);
     "Score submitted!1!!"
 }
 
