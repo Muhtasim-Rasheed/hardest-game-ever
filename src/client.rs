@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, fs::{create_dir_all, read_to_string, File}, io::Write, path::Path};
 use serde_json::json;
 
 use macroquad::prelude::*;
@@ -28,15 +28,19 @@ fn get_image(path: &str) -> Texture2D {
     }
 }
 
-fn submit_score(score: i32) {
+fn submit_score(username: &str, score: u32) {
+    if score == 0 {
+        return;
+    }
     // Get the username from the PC
-    let username = env::var("USERNAME").unwrap_or("Player".to_owned());
+    // let username = env::var("USERNAME").unwrap_or("Player".to_owned());
+    // No longer needed as the username is passed as an argument
 
     // let request = post("https://hardest-game-ever-d2ht.shuttle.app/submit")
     let request = post(format!("{}/submit", SERVER_URL))
         .with_header("Content-Type", "application/json")
         .with_body(serde_json::to_string(&router::Score {
-            player: username,
+            player: username.to_owned(),
             score: score as u32,
         }).unwrap())
         .send()
@@ -628,7 +632,78 @@ impl World {
     }
 }
 
-// Man, I forgot to make the title screen. Well, let's do it now.
+struct TextBox {
+    cursor_pos: u32,
+    text: String,
+    placeholder: String,
+    cooldown: u32,
+}
+
+impl TextBox {
+    fn new(placeholder: String) -> TextBox {
+        TextBox {
+            cursor_pos: 0,
+            text: String::new(),
+            placeholder,
+            cooldown: 0,
+        }
+    }
+
+    fn update(&mut self) {
+        let mut operation_used = false;
+        if self.cooldown == 0 {
+            if is_key_down(KeyCode::Backspace) {
+                if self.cursor_pos > 0 {
+                    self.text.remove(self.cursor_pos as usize - 1);
+                    self.cursor_pos -= 1;
+                    self.cooldown = 5;
+                }
+            } else if is_key_down(KeyCode::Delete) {
+                if self.cursor_pos < self.text.len() as u32 {
+                    self.text.remove(self.cursor_pos as usize);
+                    self.cooldown = 5;
+                }
+            } else if is_key_down(KeyCode::Left) {
+                if self.cursor_pos > 0 {
+                    self.cursor_pos -= 1;
+                    self.cooldown = 5;
+                }
+            } else if is_key_down(KeyCode::Right) {
+                if self.cursor_pos < self.text.len() as u32 {
+                    self.cursor_pos += 1;
+                    self.cooldown = 5;
+                }
+            }
+        }
+
+        if is_key_down(KeyCode::Backspace) || is_key_down(KeyCode::Delete) || is_key_down(KeyCode::Left) || is_key_down(KeyCode::Right) {
+            operation_used = true;
+        }
+        
+        if self.cooldown > 0 {
+            self.cooldown -= 1;
+        }
+
+        while let Some(c) = get_char_pressed() {
+            if operation_used {
+                continue;
+            }
+            self.text.insert(self.cursor_pos.try_into().unwrap(), c);
+            self.cursor_pos += 1;
+        }
+    }
+
+    fn draw(&self, x: f32, y: f32) {
+        let text_before_cursor = &self.text[..self.cursor_pos as usize];
+        let text_width = measure_text(&text_before_cursor, None, 36, 1.0).width;
+        draw_text(&self.text, x + 10.0, y, 36.0, WHITE);
+        draw_line(x + text_width + 12.0, y - 18.0, x + text_width + 12.0, y, 3.0, WHITE);
+        if self.text.is_empty() {
+            draw_text(&self.placeholder, x + 10.0, y, 36.0, GRAY);
+        }
+    }
+}
+
 struct Button {
     x: f32,
     y: f32,
@@ -781,7 +856,7 @@ impl TitleScreen {
             0, 32, 32, 32,
         ), "leader_board".to_owned());
         TitleScreen {
-            title: "Hardest Game Ever v1.5.2".to_owned(),
+            title: "Hardest Game Ever v1.6.0".to_owned(),
             buttons: vec![
                 new_game_button,
                 statistics_button,
@@ -867,6 +942,39 @@ async fn main() {
         .unwrap()
         .to_string();
 
+    let host_username = env::var("USERNAME").unwrap();
+    #[cfg(target_os = "windows")]
+    let directory = format!("C:/Users/{}/AppData/Roaming/HardestGameEver", host_username);
+    #[cfg(target_os = "linux")]
+    let directory = format!("/home/{}/.local/share/HardestGameEver", host_username);
+
+    let username_file = format!("{}/username.txt", directory);
+
+    // Check if the username file exists, if not, make a screen to ask for the username and save it
+    if !Path::new(&username_file).exists() {
+        let mut textbox = TextBox::new("Enter your username".to_owned());
+        loop {
+            set_default_camera();
+            clear_background(BLACK);
+
+            textbox.update();
+            textbox.draw(100.0, 100.0);
+
+            if is_key_pressed(KeyCode::Enter) {
+                // Firstly make sure the directory itself is there
+                create_dir_all(&directory).unwrap();
+
+                let mut file = File::create(&username_file).unwrap();
+                file.write_all(textbox.text.trim().as_bytes()).unwrap();
+                break;
+            }
+
+            next_frame().await;
+        }
+    }
+    
+    let username = read_to_string(&username_file).unwrap();
+    
     let mut title_screen = TitleScreen::new(&buttons_texture, &minibuttons_texture);
 
     let mut best_score = 0;
@@ -879,15 +987,21 @@ async fn main() {
         title_screen.draw(&player_texture);
 
         if is_key_pressed(KeyCode::Escape) {
+            submit_score(username.as_str(), best_score);
             break;
+        }
+
+        if is_quit_requested() {
+            // SAVE THE SCORE BEFORE IT'S TOO LATE
+            submit_score(username.as_str(), best_score);
         }
 
         if next_screen == "new_game" {
             best_score = game(world_res.clone(), player_texture.clone(), wall_texture.clone(), movingplatform_texture.clone(), speedportal_texture.clone()).await;
-            // Submit the score to the server on a separate thread
-            std::thread::spawn(move || {
-                submit_score(best_score as i32);
-            });
+            // // Submit the score to the server on a separate thread
+            // std::thread::spawn(move || {
+            //     submit_score(username, best_score);
+            // });
         } else if next_screen == "statistics" {
             // statistics().await;
             // Show best score if its higher than leaderboard score

@@ -1,6 +1,6 @@
 [package]
 name = "hardest-game-ever"
-version = "1.5.2"
+version = "1.6.0"
 edition = "2021"
 
 [[bin]]
